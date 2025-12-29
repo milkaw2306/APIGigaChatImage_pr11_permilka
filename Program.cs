@@ -1,4 +1,5 @@
-﻿using APIGigaChatImage_pr11_permilka.Models.Response;
+﻿using System.Text;
+using APIGigaChatImage_pr11_permilka.Models.Response;
 using Newtonsoft.Json;
 
 namespace APIGigaChatImage_pr11_permilka
@@ -37,9 +38,81 @@ namespace APIGigaChatImage_pr11_permilka
             return ReturnToken;
         }
 
-        static void Main(string[] args)
+        public static async Task<string> GenerateImage(string token, string prompt)
         {
+            string imageUrl = null;
+            string url = "https://gigachet.devices.sberbank.ru/api/v1/chat/completions";
 
+            using (HttpClientHandler handler = new HttpClientHandler())
+            {
+                handler.ServerCertificateCustomValidationCallback = (message, cert, chain, sslPolicyErrors) => true;
+                using (HttpClient client = new HttpClient(handler))
+                {
+                    HttpRequestMessage request = new HttpRequestMessage(HttpMethod.Post, url);
+                    request.Headers.Add("Accept", "application/json");
+                    request.Headers.Add("Authorization", $"Bearer {token}");
+                    var requestBody = new
+                    {
+                        model = "GigaChat",
+                        messages = new[]
+                        {
+                            new
+                            {
+                                role = "system",
+                                content = "Я -- Василий Кандинский"
+                            },
+                            new
+                            {
+                                role = "user",
+                                content = prompt
+                            }
+                        }
+                    };
+                    string jsonContent = JsonConvert.SerializeObject(requestBody);
+                    request.Content = new StringContent(jsonContent, Encoding.UTF8, "application/json");
+                    HttpResponseMessage response = await client.SendAsync(request);
+
+                    if (response.IsSuccessStatusCode)
+                    {
+                        string responseContent = await response.Content.ReadAsStringAsync();
+                        Console.WriteLine("Запрос успешно отправлен!");
+                        Console.WriteLine($"Ответ: {responseContent}");
+                        imageUrl = responseContent;
+                    }
+                    else
+                    {
+                        Console.WriteLine($"Ошибка: {response.StatusCode}");
+                        Console.WriteLine(await response.Content.ReadAsStringAsync());
+                    }
+                }
+            }
+
+            return imageUrl;
+        }
+
+        static async Task Main(string[] args)
+        {
+            string token = await GetToken(ClientId, AuthorizationKey);
+
+            if (!string.IsNullOrEmpty(token))
+            {
+                Console.WriteLine("Токен успешно получен!");
+                string prompt = "Нарисуй розового кота";
+                Console.WriteLine($"Отправляем промпт: {prompt}");
+                string result = await GenerateImage(token, prompt);
+                if (!string.IsNullOrEmpty(result))
+                {
+                    Console.WriteLine("Изображение успешно сгенерировано!");
+                }
+                else
+                {
+                    Console.WriteLine("Не удалось сгенерировать изображение.");
+                }
+            }
+            else
+            {
+                Console.WriteLine("Не удалось получить токен.");
+            }
         }
     }
 }
